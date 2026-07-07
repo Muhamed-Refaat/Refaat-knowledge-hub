@@ -1642,7 +1642,7 @@
             </div>
           </div>
           <!-- Hidden input to hold the actual selected value -->
-          <input type="hidden" id="edit-status" required value="">
+          <input type="hidden" id="edit-status" value="">
         </div>
 
         <div class="detail-group">
@@ -1771,7 +1771,7 @@
     }
 
     /**
-     * Bootstraps the application data.
+     * Bootstraps the application data and initializes background sync.
      */
     function initializeData() {
       if (isLocalMode) {
@@ -1784,6 +1784,7 @@
             if (response.success) {
               appData = response.data;
               renderDashboard();
+              startAutoRefresh(); // Start smart polling once initial sync is greenlit
             } else {
               renderErrorState(response.error || "Unhandled server exception during database read.");
             }
@@ -1793,6 +1794,57 @@
           })
           .getData();
       }
+    }
+
+    let autoRefreshInterval = null;
+
+    /**
+     * Initiates smart background sync loops. Checks visibility to save CPU and quota.
+     */
+    function startAutoRefresh() {
+      if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+      
+      autoRefreshInterval = setInterval(() => {
+        // Only fetch if tab is active (not minimized/hidden) and drawer edit mode is closed
+        const isEditing = document.getElementById('drawer-edit-mode').style.display === 'block';
+        if (!document.hidden && !isEditing && !isLocalMode) {
+          fetchDataSilently();
+        }
+      }, 6000); // Check for edits on spreadsheet every 6 seconds
+    }
+
+    /**
+     * Queries spreadsheet cells silently in background. If edits detected, re-renders app and notifies user.
+     */
+    function fetchDataSilently() {
+      google.script.run
+        .withSuccessHandler((response) => {
+          if (response.success) {
+            const hasChanged = JSON.stringify(response.data) !== JSON.stringify(appData);
+            if (hasChanged) {
+              appData = response.data;
+              renderDashboard();
+              
+              // If details drawer is open, refresh detail fields live as well
+              if (currentSelectedTopicId) {
+                const openTopic = appData.find(item => item.rowNum === currentSelectedTopicId);
+                if (openTopic) {
+                  // Read-only nodes refresh
+                  document.getElementById('drawer-date-text').innerText = openTopic.plannedDate || 'Not Planned';
+                  document.getElementById('drawer-notes-text').innerText = openTopic.notes || 'No objectives stated.';
+                  document.getElementById('drawer-feedback-text').innerText = openTopic.feedback || 'No verified recipient comments entered yet.';
+                  
+                  const statusBadge = document.getElementById('drawer-status-badge');
+                  statusBadge.innerText = openTopic.status;
+                  statusBadge.className = 'status-badge ' + openTopic.status.trim().toLowerCase().replace(' ', '-');
+                }
+              }
+              
+              showToastAlert("Dashboard synced with Spreadsheet!");
+            }
+          }
+        })
+        .getData();
     }
 
     /**
@@ -2197,10 +2249,8 @@
     }
 
     function triggerFormSubmit() {
-      const form = document.getElementById('drawer-edit-mode');
-      if (form.reportValidity()) {
-        form.dispatchEvent(new Event('submit', { cancelable: true }));
-      }
+      // Direct robust programmatic submission bypass (avoids browser hidden validation blocks)
+      saveTopicChanges(new Event('submit'));
     }
 
     /**
