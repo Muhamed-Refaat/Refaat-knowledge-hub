@@ -1922,9 +1922,10 @@
                   document.getElementById('drawer-notes-text').innerText = openTopic.notes || 'No objectives stated.';
                   document.getElementById('drawer-feedback-text').innerText = openTopic.feedback || 'No verified recipient comments entered yet.';
                   
+                  const statusClean = (openTopic.status || "Pending").toString().trim();
                   const statusBadge = document.getElementById('drawer-status-badge');
-                  statusBadge.innerText = openTopic.status;
-                  statusBadge.className = 'status-badge ' + openTopic.status.trim().toLowerCase().replace(' ', '-');
+                  statusBadge.innerText = statusClean;
+                  statusBadge.className = 'status-badge ' + statusClean.toLowerCase().replace(/\s+/g, '-');
                   
                   // Live link refresh
                   renderResourcesLinks(openTopic);
@@ -1939,25 +1940,31 @@
     }
 
     /**
-     * Renders the complete dashboard viewports and charts.
+     * Renders the complete dashboard viewports and charts (Wrapped inside a try-catch safety net to prevent frozen loading screen).
      */
     function renderDashboard() {
-      renderStats();
-      renderFlowTimeline();
-      renderTopicsGrid();
-      renderCharts();
-      applyTiltEffects();
+      try {
+        renderStats();
+        renderFlowTimeline();
+        renderTopicsGrid();
+        renderCharts();
+        applyTiltEffects();
+      } catch (err) {
+        console.error("Critical Render Failure: ", err);
+        renderErrorState("Initialization render failed: " + err.toString());
+      }
     }
 
     /**
      * Renders completion indexes and metrics indicators.
+     * Crash-proofed: handles null, undefined, or empty spreadsheet status columns cleanly.
      */
     function renderStats() {
       const total = appData.length;
-      const completed = appData.filter(t => t.status.trim().toLowerCase() === 'completed').length;
-      const progress = appData.filter(t => t.status.trim().toLowerCase() === 'in progress').length;
+      const completed = appData.filter(t => (t.status || "").toString().trim().toLowerCase() === 'completed').length;
+      const progress = appData.filter(t => (t.status || "").toString().trim().toLowerCase() === 'in progress').length;
       const pending = total - completed - progress;
-      
+
       const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
       // Animate counts
@@ -1983,11 +1990,11 @@
     function animateCounter(elementId, target, suffix = '') {
       const el = document.getElementById(elementId);
       if (!el) return;
-      
+
       let currentVal = 0;
       const speed = 15; // lower is faster
       const increment = Math.ceil(target / 10) || 1;
-      
+
       const timer = setInterval(() => {
         currentVal += increment;
         if (currentVal >= target) {
@@ -2001,19 +2008,21 @@
 
     /**
      * Renders the chronological handover flow timeline (promotes 3D responsive sequential movement)
+     * Sanitized: converts statuses to lowercase, hyphenated classes safely.
      */
     function renderFlowTimeline() {
       const container = document.getElementById('timeline-flow-list');
       if (!container) return;
-      
+
       container.innerHTML = '';
-      
+
       appData.forEach((item, idx) => {
-        const statusClass = item.status.trim().toLowerCase().replace(' ', '-');
+        const statusClean = (item.status || "Pending").toString().trim();
+        const statusClass = statusClean.toLowerCase().replace(/\s+/g, '-');
         const node = document.createElement('div');
         node.className = `flow-node ${statusClass}`;
         node.setAttribute('onclick', `openTopicDetails(${item.rowNum})`);
-        
+
         node.innerHTML = `
           <div class="flow-connector"></div>
           <div class="flow-indicator">
@@ -2024,34 +2033,36 @@
               <span class="flow-node-title">${item.topic}</span>
               <span class="flow-node-desc">${item.plannedDate || 'TBD'}</span>
             </div>
-            <span class="flow-badge ${statusClass}">${item.status}</span>
+            <span class="flow-badge ${statusClass}">${statusClean}</span>
           </div>
         `;
-        
+
         container.appendChild(node);
       });
     }
 
     /**
      * Renders the topics grid filtered by text or active tabs.
+     * Safely checks for status matches.
      */
     function renderTopicsGrid() {
       const container = document.getElementById('topics-list-container');
       if (!container) return;
-      
+
       const searchVal = document.getElementById('searchInput').value.trim().toLowerCase();
-      
+
       // Filter matching conditions
       const filtered = appData.filter(item => {
+        const itemStatus = (item.status || "").toString().trim().toLowerCase();
+
         // Tab Filter
-        const matchesTab = activeTabFilter === 'all' || 
-                           item.status.trim().toLowerCase() === activeTabFilter;
-        
+        const matchesTab = activeTabFilter === 'all' || itemStatus === activeTabFilter;
+
         // Search Filter
         const matchesSearch = item.topic.toLowerCase().includes(searchVal) || 
                               item.notes.toLowerCase().includes(searchVal) ||
                               item.feedback.toLowerCase().includes(searchVal);
-                              
+
         return matchesTab && matchesSearch;
       });
 
@@ -2066,18 +2077,19 @@
       }
 
       container.innerHTML = '';
-      
+
       filtered.forEach(item => {
-        const statusClass = item.status.trim().toLowerCase().replace(' ', '-');
+        const statusClean = (item.status || "Pending").toString().trim();
+        const statusClass = statusClean.toLowerCase().replace(/\s+/g, '-');
         const card = document.createElement('div');
         card.className = 'topic-card tilt-card';
         card.id = `topic-row-node-${item.rowNum}`;
         card.setAttribute('onclick', `openTopicDetails(${item.rowNum})`);
-        
+
         card.innerHTML = `
           <div class="topic-header">
             <h4 class="topic-title">${item.topic}</h4>
-            <span class="status-badge ${statusClass}">${item.status}</span>
+            <span class="status-badge ${statusClass}">${statusClean}</span>
           </div>
           <p class="topic-notes">${item.notes || 'No notes loaded for this handover deliverable.'}</p>
           <div class="topic-meta-row">
@@ -2090,74 +2102,92 @@
             </div>
           </div>
         `;
-        
+
         container.appendChild(card);
       });
-      
+
       applyTiltEffects();
     }
 
     /**
      * Initializes or updates analytics charts.
+     * Protected against slow CDN loads and blocked network requests.
      */
     function renderCharts() {
-      const ctx = document.getElementById('metricsChartNode');
-      if (!ctx) return;
+      try {
+        if (typeof Chart === 'undefined') {
+          console.warn("Chart.js is not loaded yet.");
+          return;
+        }
 
-      const completedCount = appData.filter(t => t.status === 'Completed').length;
-      const progressCount = appData.filter(t => t.status === 'In Progress').length;
-      const pendingCount = appData.filter(t => t.status === 'Pending').length;
+        const ctx = document.getElementById('metricsChartNode');
+        if (!ctx) return;
 
-      const chartData = {
-        labels: ['Completed', 'In Progress', 'Pending'],
-        datasets: [{
-          label: 'Number of deliverables',
-          data: [completedCount, progressCount, pendingCount],
-          backgroundColor: [
-            'rgba(16, 185, 129, 0.8)', // Emerald
-            'rgba(59, 130, 246, 0.8)', // Blue
-            'rgba(245, 158, 11, 0.8)'  // Amber
-          ],
-          borderColor: [
-            '#10B981',
-            '#3B82F6',
-            '#F59E0B'
-          ],
-          borderWidth: 1.5,
-          borderRadius: 8,
-          barThickness: 24
-        }]
-      };
+        const completedCount = appData.filter(t => (t.status || "").toString().trim() === 'Completed').length;
+        const progressCount = appData.filter(t => (t.status || "").toString().trim() === 'In Progress').length;
+        const pendingCount = appData.filter(t => (t.status || "").toString().trim() === 'Pending').length;
 
-      if (metricsChart) {
-        // Update existing chart
-        metricsChart.data = chartData;
-        metricsChart.update();
-      } else {
-        // Create new chart
-        metricsChart = new Chart(ctx, {
-          type: 'bar',
-          data: chartData,
-          options: {
-            indexAxis: 'y', // Makes it horizontal
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                titleFont: { family: 'Fira Sans', size: 12 },
-                bodyFont: { family: 'Fira Sans', size: 12 },
-                padding: 12,
-                cornerRadius: 8
-              }
-            },
-            scales: {
-              x: {
-                grid: { color: 'rgba(120, 113, 108, 0.05)' },
-                ticks: { font: { family: 'Fira Code', size: 10 }, stepSize: 1, color: '#57534E' }
+        const chartData = {
+          labels: ['Completed', 'In Progress', 'Pending'],
+          datasets: [{
+            label: 'Number of deliverables',
+            data: [completedCount, progressCount, pendingCount],
+            backgroundColor: [
+              'rgba(16, 185, 129, 0.8)', // Emerald
+              'rgba(59, 130, 246, 0.8)', // Blue
+              'rgba(245, 158, 11, 0.8)'  // Amber
+            ],
+            borderColor: [
+              '#10B981',
+              '#3B82F6',
+              '#F59E0B'
+            ],
+            borderWidth: 1.5,
+            borderRadius: 8,
+            barThickness: 24
+          }]
+        };
+
+        if (metricsChart) {
+          // Update existing chart
+          metricsChart.data = chartData;
+          metricsChart.update();
+        } else {
+          // Create new chart
+          metricsChart = new Chart(ctx, {
+            type: 'bar',
+            data: chartData,
+            options: {
+              indexAxis: 'y', // Makes it horizontal
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                  titleFont: { family: 'Fira Sans', size: 12 },
+                  bodyFont: { family: 'Fira Sans', size: 12 },
+                  padding: 12,
+                  cornerRadius: 8
+                }
               },
-              y: {
+              scales: {
+                x: {
+                  grid: { color: 'rgba(120, 113, 108, 0.05)' },
+                  ticks: { font: { family: 'Fira Code', size: 10 }, stepSize: 1, color: '#57534E' }
+                },
+                y: {
+                  grid: { display: false },
+                  ticks: { font: { family: 'Fira Sans', size: 11, weight: '600' }, color: '#0F172A' }
+                }
+              }
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Failed to render Chart.js graphics: ", e);
+      }
+    }
                 grid: { display: false },
                 ticks: { font: { family: 'Fira Sans', size: 11, weight: '600' }, color: '#0F172A' }
               }

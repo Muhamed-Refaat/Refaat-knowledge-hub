@@ -71,9 +71,14 @@ function getColumnMapping(values) {
     headerRowNum: -1
   };
   
-  for (let r = 0; r < values.length; r++) {
+  // Search only the first 15 rows for the headers
+  const maxSearchRows = Math.min(values.length, 15);
+  
+  for (let r = 0; r < maxSearchRows; r++) {
     const row = values[r];
-    for (let c = 0; r < 10 && c < row.length; c++) { // Search first 10 rows
+    if (!row) continue;
+    
+    for (let c = 0; c < row.length; c++) {
       const val = String(row[c]).trim().toLowerCase();
       if (val === "topic") mapping.topicIdx = c;
       if (val === "status") mapping.statusIdx = c;
@@ -124,11 +129,19 @@ function getData() {
       const feedbackVal = mapping.feedbackIdx !== -1 && row[mapping.feedbackIdx] ? String(row[mapping.feedbackIdx]).trim() : "";
       
       // Parse planned date (handle Date object or raw string)
+      // Uses bulletproof vanilla JS date parsing to avoid authorization blocks on Utilities.formatDate
       let dateVal = "";
       if (mapping.dateIdx !== -1 && row[mapping.dateIdx]) {
         const rawDate = row[mapping.dateIdx];
         if (rawDate instanceof Date) {
-          dateVal = Utilities.formatDate(rawDate, Session.getScriptTimeZone(), "yyyy-MM-dd");
+          try {
+            const yyyy = rawDate.getFullYear();
+            const mm = String(rawDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(rawDate.getDate()).padStart(2, '0');
+            dateVal = yyyy + "-" + mm + "-" + dd;
+          } catch (e) {
+            dateVal = String(rawDate).trim();
+          }
         } else {
           dateVal = String(rawDate).trim();
         }
@@ -180,7 +193,14 @@ function updateTopic(rowNum, newFeedback, username) {
     // Append Feedback comments (Dynamic Ledger Append)
     if (mapping.feedbackIdx !== -1 && newFeedback && newFeedback.trim() !== "") {
       const currentFeedback = String(sheet.getRange(r, mapping.feedbackIdx + 1).getValue()).trim();
-      const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT", "MM/dd/yyyy");
+      
+      // Bulletproof local vanilla date calculation
+      const today = new Date();
+      const dd = String(today.getDate()).padStart(2, '0');
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const yyyy = today.getFullYear();
+      const dateStr = mm + "/" + dd + "/" + yyyy;
+      
       const nameStr = (username || "Team Member").trim().replace(/[\s_:]/g, ""); // Sanitize username
       
       const fullEntry = dateStr + "_" + nameStr + ": " + newFeedback.trim();
