@@ -1331,6 +1331,7 @@
       bottom: 24px;
       right: 24px;
       z-index: 2000;
+      pointer-events: none;
     }
 
     .toast-card {
@@ -1998,7 +1999,7 @@
         if (!document.hidden && !isEditing && !isLocalMode) {
           fetchDataSilently();
         }
-      }, 6000); // Check for edits on spreadsheet every 6 seconds
+      }, 120000); // Check for edits on spreadsheet every 2 minutes
     }
 
     /**
@@ -2020,7 +2021,7 @@
                   // Read-only nodes refresh
                   document.getElementById('drawer-date-text').innerText = openTopic.plannedDate || 'Not Planned';
                   document.getElementById('drawer-notes-text').innerText = openTopic.notes || 'No objectives stated.';
-                  document.getElementById('drawer-feedback-text').innerText = openTopic.feedback || 'No verified recipient comments entered yet.';
+                  renderFeedbackTimeline(openTopic.feedback);
                   
                   const statusClean = (openTopic.status || "Pending").toString().trim();
                   const statusBadge = document.getElementById('drawer-status-badge');
@@ -2366,7 +2367,8 @@
     }
 
     /**
-     * Parses and renders multiple handover resource links dynamically (Gold for folders, Ocean Blue for recordings).
+     * Parses and renders multiple handover resource links dynamically.
+     * Supports multiple session recording links delimited by newlines, rendering them in a dropdown.
      */
     function renderResourcesLinks(topic) {
       const resourcesContainer = document.getElementById('drawer-resources-container');
@@ -2376,64 +2378,121 @@
       
       // Parse links in topic.link cell (delimited by spaces or newlines)
       const cellVal = topic.link ? String(topic.link).trim() : "";
-      const links = cellVal.split(new RegExp('\\s+')).filter(l => l.toLowerCase().startsWith('http'));
       
-      let materialsLink = "https://drive.google.com/drive/folders/1U-JVyaVPXc-2bGIjSMEF_NXkNurcegJF?usp=sharing"; // default fallback folder
-      let videoLink = null;
+      // Split by newlines first to preserve line structure for labels
+      const lines = cellVal.split('\n').map(l => l.trim()).filter(Boolean);
       
-      if (links.length > 0) {
-        // If multiple links exist in the cell
-        const parsedVideo = links.find(l => l.includes('video') || l.includes('file') || l.includes('recording') || l.includes('youtube') || l.includes('drive.google.com/file'));
-        const parsedMaterials = links.find(l => l !== parsedVideo); // Pick the other link if available
-        
-        if (parsedMaterials) materialsLink = parsedMaterials;
-        if (parsedVideo) videoLink = parsedVideo;
-        
-        // Fallback if no specific keyword match but there are 2 links
-        if (!videoLink && links.length >= 2) {
-          materialsLink = links[0];
-          videoLink = links[1];
-        } else if (!videoLink && links.length === 1) {
-          // Only 1 link in the cell: check if it's a video or material
-          const isVideo = cellVal.includes('video') || cellVal.includes('file') || cellVal.includes('recording') || cellVal.includes('youtube') || cellVal.includes('drive.google.com/file');
-          if (isVideo) {
-            videoLink = links[0];
+      const materialsLinks = [];
+      const sessionLinks = [];
+      
+      lines.forEach((line, idx) => {
+        const urlMatch = line.match(/(https?:\/\/[^\s"'<>]+)/i);
+        if (urlMatch) {
+          const url = urlMatch[1];
+          // Try to extract a clean label from the line text
+          let label = line.replace(url, '')
+                          .replace(/[:\-\s]+$/, '')
+                          .replace(/^[:\-\s]+/, '')
+                          .trim();
+          
+          const isFolder = url.includes('drive.google.com/drive/folders') || url.includes('drive.google.com/drive/u/') || url.includes('folder');
+          
+          if (isFolder) {
+            materialsLinks.push({
+              url: url,
+              label: label || `Materials Folder ${materialsLinks.length + 1}`
+            });
           } else {
-            materialsLink = links[0];
+            sessionLinks.push({
+              url: url,
+              label: label || `Session ${sessionLinks.length + 1}`
+            });
           }
         }
+      });
+      
+      // Fallback defaults if list is empty
+      const defaultFolder = "https://drive.google.com/drive/folders/1U-JVyaVPXc-2bGIjSMEF_NXkNurcegJF?usp=sharing";
+      if (materialsLinks.length === 0) {
+        materialsLinks.push({
+          url: defaultFolder,
+          label: "Explore Materials Folder"
+        });
       }
       
-      // Render Explore Materials Button
-      const matBtn = document.createElement('a');
-      matBtn.href = materialsLink;
-      matBtn.target = '_blank';
-      matBtn.className = 'btn-resource-link materials';
-      matBtn.innerHTML = '<div style="display: flex; align-items: center; gap: 10px;">' +
-                           '<svg class="icon-main" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
-                           '<span>Explore Materials Folder</span>' +
-                         '</div>' +
-                         '<svg class="icon-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
-      resourcesContainer.appendChild(matBtn);
+      // Render Explore Materials Button(s)
+      materialsLinks.forEach(mat => {
+        const matBtn = document.createElement('a');
+        matBtn.href = mat.url;
+        matBtn.target = '_blank';
+        matBtn.className = 'btn-resource-link materials';
+        matBtn.style.marginBottom = '10px';
+        matBtn.innerHTML = '<div style="display: flex; align-items: center; gap: 10px;">' +
+                             '<svg class="icon-main" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
+                             '<span>' + mat.label + '</span>' +
+                           '</div>' +
+                           '<svg class="icon-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+        resourcesContainer.appendChild(matBtn);
+      });
       
-      // Render Watch Video Button
-      const vidBtn = document.createElement('a');
-      vidBtn.target = '_blank';
-      if (videoLink) {
-        vidBtn.href = videoLink;
+      // Render Session links dropdown if there are multiple sessions, or a single button if 0 or 1
+      if (sessionLinks.length > 1) {
+        // Dropdown wrap
+        const dropDiv = document.createElement('div');
+        dropDiv.className = 'session-dropdown-wrapper';
+        dropDiv.style.marginTop = '10px';
+        dropDiv.style.marginBottom = '10px';
+        
+        let selectHtml = '<label class="detail-label" style="font-size: 0.7rem; margin-bottom: 4px; display: block;">Select Handover Session</label>' +
+                         '<select id="session-selector" style="width: 100%; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--color-border); background: #FDFBF7; font-family: inherit; font-size: 0.85rem; margin-bottom: 10px; outline: none; transition: border-color var(--transition-fast); cursor: pointer;" onchange="updateSelectedSessionLink()"\n' +
+                         '  onfocus="this.style.borderColor=\'var(--color-accent)\'" onblur="this.style.borderColor=\'var(--color-border)\'">';
+        
+        sessionLinks.forEach((sess, sidx) => {
+          selectHtml += '<option value="' + encodeURIComponent(sess.url) + '">' + sess.label + '</option>';
+        });
+        
+        selectHtml += '</select>';
+        dropDiv.innerHTML = selectHtml;
+        
+        // Watch Button
+        const vidBtn = document.createElement('a');
+        vidBtn.id = 'btn-watch-session';
+        vidBtn.href = sessionLinks[0].url;
+        vidBtn.target = '_blank';
         vidBtn.className = 'btn-resource-link video';
+        vidBtn.innerHTML = '<div style="display: flex; align-items: center; gap: 10px;">' +
+                             '<svg class="icon-main" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>' +
+                             '<span id="watch-session-text">Watch Selected Recording</span>' +
+                           '</div>' +
+                           '<svg class="icon-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+        
+        dropDiv.appendChild(vidBtn);
+        resourcesContainer.appendChild(dropDiv);
       } else {
-        // If no video link is provided in the cell, fallback to the main folder
-        vidBtn.href = "https://drive.google.com/drive/folders/1U-JVyaVPXc-2bGIjSMEF_NXkNurcegJF?usp=sharing";
+        // Just single link or fallback
+        const singleSess = sessionLinks.length === 1 ? sessionLinks[0] : { url: defaultFolder, label: "Watch Session Recording" };
+        const vidBtn = document.createElement('a');
+        vidBtn.href = singleSess.url;
+        vidBtn.target = '_blank';
         vidBtn.className = 'btn-resource-link video';
+        vidBtn.innerHTML = '<div style="display: flex; align-items: center; gap: 10px;">' +
+                             '<svg class="icon-main" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>' +
+                             '<span>' + singleSess.label + '</span>' +
+                           '</div>' +
+                           '<svg class="icon-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+        resourcesContainer.appendChild(vidBtn);
       }
-      
-      vidBtn.innerHTML = '<div style="display: flex; align-items: center; gap: 10px;">' +
-                           '<svg class="icon-main" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>' +
-                           '<span>Watch Session Recording</span>' +
-                         '</div>' +
-                         '<svg class="icon-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
-      resourcesContainer.appendChild(vidBtn);
+    }
+
+    /**
+     * Updates the Watch Video URL when the dropdown selection changes.
+     */
+    function updateSelectedSessionLink() {
+      const select = document.getElementById('session-selector');
+      const btn = document.getElementById('btn-watch-session');
+      if (select && btn) {
+        btn.href = decodeURIComponent(select.value);
+      }
     }
 
     /**
@@ -2454,33 +2513,93 @@
       // Split by double newlines to isolate separate feedbacks
       const entries = rawText.split(new RegExp('\\n\\n+'));
 
-      entries.forEach(entry => {
+      entries.forEach((entry, idx) => {
         // Regex to match: MM/DD/YYYY_username: message
         const match = entry.match(new RegExp('^(\\d{2})/(\\d{2})/(\\d{4})_([^:]+):\\s*([\\s\\S]+)$'));
 
         const bubble = document.createElement('div');
         bubble.className = 'feedback-bubble';
+        bubble.style.cursor = 'pointer';
+        bubble.style.transition = 'all var(--transition-fast)';
+
+        const bodyId = `feedback-body-${idx}`;
+        const eyeId = `feedback-eye-${idx}`;
 
         if (match) {
-          const date = match[1];
-          const user = match[2];
-          const text = match[3];
+          const date = `${match[1]}/${match[2]}/${match[3]}`;
+          const user = match[4];
+          const text = match[5];
 
-          bubble.innerHTML = '<div class="feedback-bubble-header">' +
-                               '<span class="user">' + user + '</span>' +
-                               '<span class="date">' + date + '</span>' +
-                             '</div>' +
-                             '<div class="feedback-bubble-body">' + text.replace(new RegExp('\\n', 'g'), '<br>') + '</div>';
+          bubble.innerHTML = 
+            '<div class="feedback-bubble-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;" onclick="toggleFeedbackContent(\'' + bodyId + '\', \'' + eyeId + '\', event)">' +
+              '<div style="display: flex; align-items: center; gap: 8px;">' +
+                '<span class="user" style="font-weight: 700; color: var(--color-secondary); font-family: \'Fira Code\', monospace;">' + user + '</span>' +
+                '<span style="color: var(--color-foreground-muted); opacity: 0.5;">•</span>' +
+                '<span class="date" style="font-weight: 600; color: var(--color-foreground-muted);">' + date + '</span>' +
+              '</div>' +
+              '<button type="button" class="btn-eye-toggle" style="background: transparent; border: none; cursor: pointer; color: var(--color-foreground-muted); padding: 4px; display: flex; align-items: center; justify-content: center; transition: color var(--transition-fast);">' +
+                '<svg id="' + eyeId + '" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye-off">' +
+                  '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.45 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>' +
+                  '<line x1="1" y1="1" x2="23" y2="23"></line>' +
+                '</svg>' +
+              '</button>' +
+            '</div>' +
+            '<div class="feedback-bubble-body" id="' + bodyId + '" style="display: none; margin-top: 8px; border-top: 1px dashed rgba(120,113,108,0.12); padding-top: 8px; font-size: 0.85rem; color: var(--color-foreground); line-height: 1.45;">' + 
+              text.replace(new RegExp('\\n', 'g'), '<br>') + 
+            '</div>';
         } else {
           // Fallback if older manual text entry is inside sheet cells
-          bubble.innerHTML = '<div class="feedback-bubble-header">' +
-                               '<span class="user">Spreadsheet Entry</span>' +
-                             '</div>' +
-                             '<div class="feedback-bubble-body">' + entry.replace(new RegExp('\\n', 'g'), '<br>') + '</div>';
+          bubble.innerHTML = 
+            '<div class="feedback-bubble-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;" onclick="toggleFeedbackContent(\'' + bodyId + '\', \'' + eyeId + '\', event)">' +
+              '<span class="user" style="font-weight: 700; color: var(--color-secondary); font-family: \'Fira Code\', monospace;">Spreadsheet Entry</span>' +
+              '<button type="button" class="btn-eye-toggle" style="background: transparent; border: none; cursor: pointer; color: var(--color-foreground-muted); padding: 4px; display: flex; align-items: center; justify-content: center; transition: color var(--transition-fast);">' +
+                '<svg id="' + eyeId + '" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye-off">' +
+                  '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.45 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>' +
+                  '<line x1="1" y1="1" x2="23" y2="23"></line>' +
+                '</svg>' +
+              '</button>' +
+            '</div>' +
+            '<div class="feedback-bubble-body" id="' + bodyId + '" style="display: none; margin-top: 8px; border-top: 1px dashed rgba(120,113,108,0.12); padding-top: 8px; font-size: 0.85rem; color: var(--color-foreground); line-height: 1.45;">' + 
+              entry.replace(new RegExp('\\n', 'g'), '<br>') + 
+            '</div>';
         }
+
+        bubble.addEventListener('click', (e) => {
+          // If click lands directly on bubble body, don't close/toggle if trying to select text
+          if (e.target.closest('.feedback-bubble-body')) return;
+          toggleFeedbackContent(bodyId, eyeId, e);
+        });
 
         container.appendChild(bubble);
       });
+    }
+
+    /**
+     * Toggles visibility of feedback content and swaps the SVG eye-off/eye icons dynamically.
+     */
+    function toggleFeedbackContent(bodyId, eyeId, event) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      const body = document.getElementById(bodyId);
+      const eye = document.getElementById(eyeId);
+      if (!body) return;
+
+      const isHidden = body.style.display === 'none';
+      if (isHidden) {
+        body.style.display = 'block';
+        if (eye) {
+          eye.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+          eye.setAttribute('class', 'feather feather-eye');
+        }
+      } else {
+        body.style.display = 'none';
+        if (eye) {
+          eye.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.45 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+          eye.setAttribute('class', 'feather feather-eye-off');
+        }
+      }
     }
 
     /* ==========================================
