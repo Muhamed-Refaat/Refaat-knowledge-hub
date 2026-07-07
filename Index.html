@@ -1861,6 +1861,27 @@
     </div>
   </div>
 
+  <!-- MULTIPLE SESSIONS SELECTION MODAL -->
+  <div class="drawer-overlay" id="sessionModalOverlay" onclick="closeSessionModal()" style="z-index: 2100;"></div>
+  <div class="toast-card" id="sessionModalPanel" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); opacity: 0; pointer-events: none; z-index: 2200; display: flex; flex-direction: column; width: 90%; max-width: 360px; padding: 24px; border-radius: 20px; background: white; box-shadow: var(--shadow-lg); border: 1px solid var(--color-border); transition: all var(--transition-normal);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--color-foreground);">Select Session</h4>
+      <button type="button" class="btn-close-drawer" onclick="closeSessionModal()" style="width: 28px; height: 28px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <p style="font-size: 0.8rem; color: var(--color-foreground-muted); margin-bottom: 16px; line-height: 1.4;">This deliverable has multiple session recordings. Please choose which one you would like to view:</p>
+    
+    <select id="modal-session-selector" style="width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--color-border); background: #FDFBF7; font-family: inherit; font-size: 0.9rem; margin-bottom: 20px; outline: none; transition: border-color var(--transition-fast); cursor: pointer;"
+      onfocus="this.style.borderColor='var(--color-accent)'" onblur="this.style.borderColor='var(--color-border)'">
+    </select>
+    
+    <div style="display: flex; gap: 12px;">
+      <button type="button" onclick="closeSessionModal()" class="btn-drawer-action-outline" style="padding: 10px 16px; font-size: 0.85rem; border-radius: 10px;">Cancel</button>
+      <button type="button" onclick="launchSelectedSession()" class="btn-drawer-action-primary" style="padding: 10px 16px; font-size: 0.85rem; border-radius: 10px; flex: 1; justify-content: center;">Watch Video</button>
+    </div>
+  </div>
+
   <!-- TOAST ALERTS POPUP -->
   <div class="toast-container">
     <div class="toast-card" id="toastAlert">
@@ -2368,7 +2389,7 @@
 
     /**
      * Parses and renders multiple handover resource links dynamically.
-     * Supports multiple session recording links delimited by newlines, rendering them in a dropdown.
+     * If there are multiple session links, clicking 'Watch Session Recording' opens a popup selector.
      */
     function renderResourcesLinks(topic) {
       const resourcesContainer = document.getElementById('drawer-resources-container');
@@ -2435,63 +2456,85 @@
         resourcesContainer.appendChild(matBtn);
       });
       
-      // Render Session links dropdown if there are multiple sessions, or a single button if 0 or 1
+      // Render SINGLE Watch Session Recording Button
+      const vidBtn = document.createElement('a');
+      vidBtn.className = 'btn-resource-link video';
+      vidBtn.style.cursor = 'pointer';
+
       if (sessionLinks.length > 1) {
-        // Dropdown wrap
-        const dropDiv = document.createElement('div');
-        dropDiv.className = 'session-dropdown-wrapper';
-        dropDiv.style.marginTop = '10px';
-        dropDiv.style.marginBottom = '10px';
-        
-        let selectHtml = '<label class="detail-label" style="font-size: 0.7rem; margin-bottom: 4px; display: block;">Select Handover Session</label>' +
-                         '<select id="session-selector" style="width: 100%; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--color-border); background: #FDFBF7; font-family: inherit; font-size: 0.85rem; margin-bottom: 10px; outline: none; transition: border-color var(--transition-fast); cursor: pointer;" onchange="updateSelectedSessionLink()"\n' +
-                         '  onfocus="this.style.borderColor=\'var(--color-accent)\'" onblur="this.style.borderColor=\'var(--color-border)\'">';
-        
-        sessionLinks.forEach((sess, sidx) => {
-          selectHtml += '<option value="' + encodeURIComponent(sess.url) + '">' + sess.label + '</option>';
-        });
-        
-        selectHtml += '</select>';
-        dropDiv.innerHTML = selectHtml;
-        
-        // Watch Button
-        const vidBtn = document.createElement('a');
-        vidBtn.id = 'btn-watch-session';
-        vidBtn.href = sessionLinks[0].url;
-        vidBtn.target = '_blank';
-        vidBtn.className = 'btn-resource-link video';
+        // Multiple links: On click, prompt the modal popup
+        vidBtn.onclick = function() {
+          openSessionModal(sessionLinks);
+        };
         vidBtn.innerHTML = '<div style="display: flex; align-items: center; gap: 10px;">' +
                              '<svg class="icon-main" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>' +
-                             '<span id="watch-session-text">Watch Selected Recording</span>' +
+                             '<span>Watch Session Recording</span>' +
                            '</div>' +
-                           '<svg class="icon-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
-        
-        dropDiv.appendChild(vidBtn);
-        resourcesContainer.appendChild(dropDiv);
+                           '<div style="display: flex; align-items: center; gap: 4px;">' +
+                             '<span style="font-size: 0.7rem; font-weight: 700; color: var(--color-progress); background: var(--color-progress-bg); padding: 2px 6px; border-radius: 6px;">' + sessionLinks.length + ' Sessions</span>' +
+                             '<svg class="icon-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+                           '</div>';
       } else {
-        // Just single link or fallback
+        // 0 or 1 link: opens directly or falls back
         const singleSess = sessionLinks.length === 1 ? sessionLinks[0] : { url: defaultFolder, label: "Watch Session Recording" };
-        const vidBtn = document.createElement('a');
         vidBtn.href = singleSess.url;
         vidBtn.target = '_blank';
-        vidBtn.className = 'btn-resource-link video';
         vidBtn.innerHTML = '<div style="display: flex; align-items: center; gap: 10px;">' +
                              '<svg class="icon-main" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>' +
                              '<span>' + singleSess.label + '</span>' +
                            '</div>' +
                            '<svg class="icon-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
-        resourcesContainer.appendChild(vidBtn);
       }
+      resourcesContainer.appendChild(vidBtn);
     }
 
     /**
-     * Updates the Watch Video URL when the dropdown selection changes.
+     * Session Modal Selection Controllers
      */
-    function updateSelectedSessionLink() {
-      const select = document.getElementById('session-selector');
-      const btn = document.getElementById('btn-watch-session');
-      if (select && btn) {
-        btn.href = decodeURIComponent(select.value);
+    let currentModalSessions = [];
+
+    function openSessionModal(sessions) {
+      currentModalSessions = sessions;
+      const select = document.getElementById('modal-session-selector');
+      if (!select) return;
+      
+      select.innerHTML = '';
+      sessions.forEach((sess) => {
+        const option = document.createElement('option');
+        option.value = sess.url;
+        option.innerText = sess.label;
+        select.appendChild(option);
+      });
+      
+      const overlay = document.getElementById('sessionModalOverlay');
+      const panel = document.getElementById('sessionModalPanel');
+      if (overlay && panel) {
+        overlay.style.opacity = '1';
+        overlay.style.pointerEvents = 'auto';
+        panel.style.opacity = '1';
+        panel.style.transform = 'translate(-50%, -50%) scale(1)';
+        panel.style.pointerEvents = 'auto';
+      }
+    }
+
+    function closeSessionModal() {
+      const overlay = document.getElementById('sessionModalOverlay');
+      const panel = document.getElementById('sessionModalPanel');
+      if (overlay && panel) {
+        overlay.style.opacity = '0';
+        overlay.style.pointerEvents = 'none';
+        panel.style.opacity = '0';
+        panel.style.transform = 'translate(-50%, -50%) scale(0.9)';
+        panel.style.pointerEvents = 'none';
+      }
+      currentModalSessions = [];
+    }
+
+    function launchSelectedSession() {
+      const select = document.getElementById('modal-session-selector');
+      if (select && select.value) {
+        window.open(select.value, '_blank');
+        closeSessionModal();
       }
     }
 
