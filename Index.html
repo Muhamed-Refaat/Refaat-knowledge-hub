@@ -1223,6 +1223,106 @@
       gap: 12px;
     }
 
+    /* Primary & Outline Navigation / Action Buttons */
+    .btn-nav-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 99px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--color-foreground-muted);
+      background: transparent;
+      border: 1px solid var(--color-border);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .btn-nav-outline:hover {
+      color: var(--color-foreground);
+      background: rgba(120, 113, 108, 0.04);
+      border-color: var(--color-border-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-nav-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 20px;
+      border-radius: 99px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-decoration: none;
+      color: white;
+      background: linear-gradient(135deg, var(--color-accent) 0%, #D97706 100%);
+      border: none;
+      box-shadow: 0 4px 12px rgba(217, 119, 6, 0.2);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .btn-nav-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3);
+    }
+
+    /* Drawer Footer Action Buttons */
+    .btn-drawer-action-outline {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 14px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid var(--color-border);
+      color: var(--color-foreground-muted);
+      transition: all var(--transition-fast);
+      flex: 1;
+    }
+
+    .btn-drawer-action-outline:hover {
+      background: rgba(120, 113, 108, 0.04);
+      color: var(--color-foreground);
+      border-color: var(--color-border-hover);
+    }
+
+    .btn-drawer-action-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 14px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: white;
+      background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%);
+      border: none;
+      box-shadow: 0 4px 15px rgba(217, 119, 6, 0.2);
+      transition: all var(--transition-fast);
+      flex: 1;
+    }
+
+    .btn-drawer-action-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(217, 119, 6, 0.3);
+    }
+
+    .btn-drawer-action-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
     /* ==========================================
        TOAST / NOTIFICATION POPUP
        ========================================== */
@@ -1749,12 +1849,12 @@
       </div>
       
       <div id="drawer-edit-footer" style="display: none; gap: 12px; width: 100%;">
-        <button type="button" onclick="disableEditMode()" class="btn-nav-outline" style="flex: 1; justify-content: center;">
+        <button type="button" onclick="disableEditMode()" class="btn-drawer-action-outline" style="flex: 1; justify-content: center;">
           Cancel
         </button>
-        <button type="button" id="btn-save-submit" onclick="triggerFormSubmit()" class="btn-nav-primary" style="flex: 1; justify-content: center;">
+        <button type="button" id="btn-save-submit" onclick="triggerFormSubmit()" class="btn-drawer-action-primary" style="flex: 1; justify-content: center;">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="save-spinner" style="display:none; animation: spin 1s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>
-          <span>Commit Specs</span>
+          <span>Submit Comment</span>
         </button>
       </div>
     </div>
@@ -2432,20 +2532,6 @@
     /**
      * Updates and highlights custom Status pills in the form.
      */
-    function selectStatusValue(val) {
-      document.getElementById('edit-status').value = val;
-      
-      // Clear active states on all status cards
-      const cards = document.querySelectorAll('.status-select-card');
-      cards.forEach(card => card.classList.remove('active'));
-      
-      // Add active state to selected card
-      const targetCard = document.getElementById('status-card-' + val);
-      if (targetCard) {
-        targetCard.classList.add('active');
-      }
-    }
-
     function closeDrawer() {
       document.getElementById('drawerOverlay').classList.remove('open');
       document.getElementById('drawerPanel').classList.remove('open');
@@ -2490,7 +2576,6 @@
       if (submitBtn) submitBtn.disabled = true;
 
       const rNum = parseInt(document.getElementById('edit-rowNum').value, 10);
-      const status = document.getElementById('edit-status').value;
       const feedback = document.getElementById('edit-feedback').value.trim();
       const username = document.getElementById('edit-username').value.trim() || 'Team Member';
 
@@ -2514,8 +2599,6 @@
         setTimeout(() => {
           const itemIdx = appData.findIndex(item => item.rowNum === rNum);
           if (itemIdx !== -1) {
-            appData[itemIdx].status = status;
-            
             const appendText = buildAppendLedgerText(feedback);
             if (appendText) {
               const currentText = appData[itemIdx].feedback ? String(appData[itemIdx].feedback).trim() : "";
@@ -2539,8 +2622,6 @@
               // Refresh local dataset fields locally to avoid separate sync overhead
               const itemIdx = appData.findIndex(item => item.rowNum === rNum);
               if (itemIdx !== -1) {
-                appData[itemIdx].status = status;
-                
                 const appendText = buildAppendLedgerText(feedback);
                 if (appendText) {
                   const currentText = appData[itemIdx].feedback ? String(appData[itemIdx].feedback).trim() : "";
@@ -2551,7 +2632,7 @@
               if (saveSpinner) saveSpinner.style.display = 'none';
               if (submitBtn) submitBtn.disabled = false;
               
-              showToastAlert("Sheet updated in real-time!");
+              showToastAlert("Comment submitted to Google Sheet!");
               closeDrawer();
               renderDashboard();
             } else {
