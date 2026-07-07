@@ -159,10 +159,10 @@ function getData() {
 }
 
 /**
- * Updates a specific topic row in the Google Sheet.
- * Restricts writes to Status and Feedback, and chronological appends comments in format: MM/DD/YYYY_username: text
+ * Updates a specific topic row in the Google Sheet (Restricted strictly to appending Feedback comments).
+ * Status column modifications are disabled via WebApp (only possible in backend Google Sheet itself).
  */
-function updateTopic(rowNum, status, newFeedback, username) {
+function updateTopic(rowNum, newFeedback, username) {
   try {
     const sheet = getSheet();
     const values = sheet.getDataRange().getValues();
@@ -177,12 +177,7 @@ function updateTopic(rowNum, status, newFeedback, username) {
       throw new Error("Invalid row number: " + rowNum);
     }
     
-    // 1. Update Status Column
-    if (mapping.statusIdx !== -1) {
-      sheet.getRange(r, mapping.statusIdx + 1).setValue(status);
-    }
-    
-    // 2. Append Feedback (Dynamic Ledger Append)
+    // Append Feedback comments (Dynamic Ledger Append)
     if (mapping.feedbackIdx !== -1 && newFeedback && newFeedback.trim() !== "") {
       const currentFeedback = String(sheet.getRange(r, mapping.feedbackIdx + 1).getValue()).trim();
       const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT", "MM/dd/yyyy");
@@ -196,7 +191,7 @@ function updateTopic(rowNum, status, newFeedback, username) {
     
     return {
       success: true,
-      message: "Row " + r + " updated successfully on the spreadsheet."
+      message: "Row " + r + " updated successfully with feedback on the spreadsheet."
     };
   } catch (err) {
     return {
