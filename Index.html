@@ -1172,6 +1172,48 @@
       color: var(--color-foreground);
     }
 
+    /* Collaborative Feedback Chat bubbles timeline */
+    .feedback-timeline-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .feedback-bubble {
+      background: #F8F6F0; /* Soft warm ivory bubble */
+      border: 1px solid rgba(120, 113, 108, 0.08);
+      border-radius: 14px;
+      padding: 12px 16px;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .feedback-bubble-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      font-size: 0.75rem;
+    }
+
+    .feedback-bubble-header .user {
+      font-weight: 700;
+      color: var(--color-secondary);
+      font-family: 'Fira Code', monospace;
+    }
+
+    .feedback-bubble-header .date {
+      font-weight: 600;
+      color: var(--color-foreground-muted);
+    }
+
+    .feedback-bubble-body {
+      font-size: 0.85rem;
+      color: var(--color-foreground);
+      line-height: 1.45;
+    }
+
     .drawer-footer {
       padding: 24px;
       border-top: 1px solid var(--color-border);
@@ -1675,8 +1717,10 @@
         </div>
         
         <div class="detail-group">
-          <div class="detail-label">Team Feedback / Verification Remarks</div>
-          <div class="detail-value-text" id="drawer-feedback-text">Feedback goes here...</div>
+          <div class="detail-label">Feedback Thread / History Log</div>
+          <div class="feedback-timeline-stack" id="drawer-feedback-timeline-container">
+            <!-- Render threaded logs dynamically -->
+          </div>
         </div>
       </div>
 
@@ -1702,6 +1746,11 @@
           </div>
           <!-- Hidden input to hold the actual selected value -->
           <input type="hidden" id="edit-status" value="">
+        </div>
+
+        <div class="detail-group">
+          <label class="detail-label" for="edit-username">Your Name / Username</label>
+          <input type="text" id="edit-username" class="form-control-premium-input" placeholder="e.g. mrefaata" style="padding: 10px 14px; border-radius: 10px; width: 100%; border: 1px solid var(--color-border); background: #FDFBF7; outline: none; transition: all var(--transition-normal); font-family: inherit; font-size: 0.9rem;">
         </div>
 
         <div class="detail-group">
@@ -2299,35 +2348,93 @@
       resourcesContainer.appendChild(vidBtn);
     }
 
+    /**
+     * Parses and renders a chronological timeline of recipient feedback entries (DATE_username: text).
+     */
+    function renderFeedbackTimeline(feedbackText) {
+      const container = document.getElementById('drawer-feedback-timeline-container');
+      if (!container) return;
+
+      container.innerHTML = '';
+
+      const rawText = feedbackText ? String(feedbackText).trim() : "";
+      if (!rawText) {
+        container.innerHTML = `<div class="detail-value-text empty">No verified recipient comments entered yet.</div>`;
+        return;
+      }
+
+      // Split by double newlines to isolate separate feedbacks
+      const entries = rawText.split(/\n\n+/);
+
+      entries.forEach(entry => {
+        // Regex to match: MM/DD/YYYY_username: message
+        const match = entry.match(/^(\d{2}\/\d{2}\/\d{4})_([^:]+):\s*([\s\S]+)$/);
+
+        const bubble = document.createElement('div');
+        bubble.className = 'feedback-bubble';
+
+        if (match) {
+          const date = match[1];
+          const user = match[2];
+          const text = match[3];
+
+          bubble.innerHTML = `
+            <div class="feedback-bubble-header">
+              <span class="user">${user}</span>
+              <span class="date">${date}</span>
+            </div>
+            <div class="feedback-bubble-body">${text.replace(/\n/g, '<br>')}</div>
+          `;
+        } else {
+          // Fallback if older manual text entry is inside sheet cells
+          bubble.innerHTML = `
+            <div class="feedback-bubble-header">
+              <span class="user">Spreadsheet Entry</span>
+            </div>
+            <div class="feedback-bubble-body">${entry.replace(/\n/g, '<br>')}</div>
+          `;
+        }
+
+        container.appendChild(bubble);
+      });
+    }
+
     /* ==========================================
        SIDEBAR & SPECIFICATION FORM CONTROLLERS
        ========================================== */
     function openTopicDetails(rowNum) {
       const topic = appData.find(item => item.rowNum === rowNum);
       if (!topic) return;
-      
+
       currentSelectedTopicId = rowNum;
-      
+
       // Populate fields
       document.getElementById('drawer-title-node').innerText = topic.topic;
-      
+
       // Read-only values (Permanent Reference data)
       document.getElementById('drawer-date-text').innerText = topic.plannedDate || 'Not Planned';
       document.getElementById('drawer-notes-text').innerText = topic.notes || 'No objectives stated.';
-      
+
       // Read-only value outputs
       const statusBadge = document.getElementById('drawer-status-badge');
       statusBadge.innerText = topic.status;
       statusBadge.className = 'status-badge ' + topic.status.trim().toLowerCase().replace(' ', '-');
-      document.getElementById('drawer-feedback-text').innerText = topic.feedback || 'No verified recipient comments entered yet.';
-      
+
+      // Render threaded feedback comments timeline beautifully
+      renderFeedbackTimeline(topic.feedback);
+
       // Render multiple links dynamically based on sheet cells content
       renderResourcesLinks(topic);
 
       // Populate edit fields in background (Restricted strictly to editable targets)
       document.getElementById('edit-rowNum').value = topic.rowNum;
       selectStatusValue(topic.status);
-      document.getElementById('edit-feedback').value = topic.feedback || '';
+
+      // Load saved username from local browser storage automatically
+      document.getElementById('edit-username').value = localStorage.getItem('dcross_username') || '';
+
+      // Clear the feedback text box so they can type a new comment cleanly on click
+      document.getElementById('edit-feedback').value = '';
 
       disableEditMode(); // Always start in read-only spec view
 
@@ -2399,6 +2506,22 @@
       const rNum = parseInt(document.getElementById('edit-rowNum').value, 10);
       const status = document.getElementById('edit-status').value;
       const feedback = document.getElementById('edit-feedback').value.trim();
+      const username = document.getElementById('edit-username').value.trim() || 'Team Member';
+
+      // Save username to local storage for future seamless autofill
+      localStorage.setItem('dcross_username', username);
+
+      // Construct ledger entry helper for immediate, rich client-side rendering
+      const buildAppendLedgerText = (newComment) => {
+        if (!newComment) return "";
+        const today = new Date();
+        const dd = String(today.getDate()).padStart(2, '0');
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const yyyy = today.getFullYear();
+        const dateStr = mm + '/' + dd + '/' + yyyy;
+        const nameStr = username.replace(/[\s_:]/g, ""); // sanitize name
+        return dateStr + "_" + nameStr + ": " + newComment;
+      };
 
       if (isLocalMode) {
         // Standalone Local storage update
@@ -2406,7 +2529,12 @@
           const itemIdx = appData.findIndex(item => item.rowNum === rNum);
           if (itemIdx !== -1) {
             appData[itemIdx].status = status;
-            appData[itemIdx].feedback = feedback;
+            
+            const appendText = buildAppendLedgerText(feedback);
+            if (appendText) {
+              const currentText = appData[itemIdx].feedback ? String(appData[itemIdx].feedback).trim() : "";
+              appData[itemIdx].feedback = currentText ? currentText + "\n\n" + appendText : appendText;
+            }
           }
           
           // Complete animation state
@@ -2418,7 +2546,7 @@
           renderDashboard();
         }, 600); // Artificial delay to mimic server response beautiful feel
       } else {
-        // Execute Google Apps Script backend update call
+        // Execute Google Apps Script backend update call with multi-feedback ledger support
         google.script.run
           .withSuccessHandler((response) => {
             if (response.success) {
@@ -2426,7 +2554,12 @@
               const itemIdx = appData.findIndex(item => item.rowNum === rNum);
               if (itemIdx !== -1) {
                 appData[itemIdx].status = status;
-                appData[itemIdx].feedback = feedback;
+                
+                const appendText = buildAppendLedgerText(feedback);
+                if (appendText) {
+                  const currentText = appData[itemIdx].feedback ? String(appData[itemIdx].feedback).trim() : "";
+                  appData[itemIdx].feedback = currentText ? currentText + "\n\n" + appendText : appendText;
+                }
               }
               
               if (saveSpinner) saveSpinner.style.display = 'none';
@@ -2446,7 +2579,7 @@
             if (submitBtn) submitBtn.disabled = false;
             alert("Apps Script Exception: " + err.toString());
           })
-          .updateTopic(rNum, status, feedback);
+          .updateTopic(rNum, status, feedback, username);
       }
     }
 

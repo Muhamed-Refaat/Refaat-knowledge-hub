@@ -159,9 +159,10 @@ function getData() {
 }
 
 /**
- * Updates a specific topic row in the Google Sheet (Restricted write fields: Status and Feedback).
+ * Updates a specific topic row in the Google Sheet.
+ * Restricts writes to Status and Feedback, and chronological appends comments in format: MM/DD/YYYY_username: text
  */
-function updateTopic(rowNum, status, feedback) {
+function updateTopic(rowNum, status, newFeedback, username) {
   try {
     const sheet = getSheet();
     const values = sheet.getDataRange().getValues();
@@ -176,12 +177,21 @@ function updateTopic(rowNum, status, feedback) {
       throw new Error("Invalid row number: " + rowNum);
     }
     
-    // Strictly update Status and Feedback ONLY (Read-Only protections for structural cells)
+    // 1. Update Status Column
     if (mapping.statusIdx !== -1) {
       sheet.getRange(r, mapping.statusIdx + 1).setValue(status);
     }
-    if (mapping.feedbackIdx !== -1) {
-      sheet.getRange(r, mapping.feedbackIdx + 1).setValue(feedback);
+    
+    // 2. Append Feedback (Dynamic Ledger Append)
+    if (mapping.feedbackIdx !== -1 && newFeedback && newFeedback.trim() !== "") {
+      const currentFeedback = String(sheet.getRange(r, mapping.feedbackIdx + 1).getValue()).trim();
+      const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT", "MM/dd/yyyy");
+      const nameStr = (username || "Team Member").trim().replace(/[\s_:]/g, ""); // Sanitize username
+      
+      const fullEntry = dateStr + "_" + nameStr + ": " + newFeedback.trim();
+      const updatedFeedback = currentFeedback ? currentFeedback + "\n\n" + fullEntry : fullEntry;
+      
+      sheet.getRange(r, mapping.feedbackIdx + 1).setValue(updatedFeedback);
     }
     
     return {
