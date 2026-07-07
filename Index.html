@@ -1355,6 +1355,55 @@
       pointer-events: auto;
     }
 
+    /* ==========================================
+       SESSION SELECTION MODAL & CUSTOM DROPDOWN
+       ========================================== */
+    .session-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 2100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-normal);
+    }
+
+    .session-modal-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .session-modal-panel {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 2200;
+      display: flex;
+      flex-direction: column;
+      width: 90%;
+      max-width: 380px;
+      padding: 28px;
+      border-radius: 24px;
+      background: white;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--color-border);
+      transition: all var(--transition-normal);
+    }
+
+    .session-modal-panel.open {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
     .toast-icon-box {
       width: 24px;
       height: 24px;
@@ -1862,22 +1911,29 @@
   </div>
 
   <!-- MULTIPLE SESSIONS SELECTION MODAL -->
-  <div class="drawer-overlay" id="sessionModalOverlay" onclick="closeSessionModal()" style="z-index: 2100;"></div>
-  <div class="toast-card" id="sessionModalPanel" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); opacity: 0; pointer-events: none; z-index: 2200; display: flex; flex-direction: column; width: 90%; max-width: 360px; padding: 24px; border-radius: 20px; background: white; box-shadow: var(--shadow-lg); border: 1px solid var(--color-border); transition: all var(--transition-normal);">
+  <div class="session-modal-overlay" id="sessionModalOverlay" onclick="closeSessionModal()"></div>
+  <div class="session-modal-panel" id="sessionModalPanel">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--color-foreground);">Select Session</h4>
+      <h4 style="font-size: 1.15rem; font-weight: 700; color: var(--color-foreground);">Select Session</h4>
       <button type="button" class="btn-close-drawer" onclick="closeSessionModal()" style="width: 28px; height: 28px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <p style="font-size: 0.8rem; color: var(--color-foreground-muted); margin-bottom: 16px; line-height: 1.4;">This deliverable has multiple session recordings. Please choose which one you would like to view:</p>
+    <p style="font-size: 0.85rem; color: var(--color-foreground-muted); margin-bottom: 20px; line-height: 1.5;">This topic has multiple session recordings. Please select the session you would like to watch:</p>
     
-    <select id="modal-session-selector" style="width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--color-border); background: #FDFBF7; font-family: inherit; font-size: 0.9rem; margin-bottom: 20px; outline: none; transition: border-color var(--transition-fast); cursor: pointer;"
-      onfocus="this.style.borderColor='var(--color-accent)'" onblur="this.style.borderColor='var(--color-border)'">
-    </select>
+    <!-- Custom Dropdown Selector -->
+    <div class="custom-select-container" style="position: relative; width: 100%; margin-bottom: 24px;">
+      <button type="button" id="custom-select-trigger" onclick="toggleCustomSelect(event)" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--color-border); background: #FDFBF7; font-family: inherit; font-size: 0.9rem; font-weight: 600; color: var(--color-foreground); cursor: pointer; outline: none; transition: border-color var(--transition-fast);">
+        <span id="custom-select-label">Select Session</span>
+        <svg id="custom-select-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: var(--color-foreground-muted); transition: transform var(--transition-fast); transform: rotate(0deg);"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div id="custom-select-options" style="display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: white; border: 1px solid var(--color-border); border-radius: 12px; box-shadow: var(--shadow-md); z-index: 2300; max-height: 200px; overflow-y: auto; padding: 6px;">
+        <!-- Dynamically injected options -->
+      </div>
+    </div>
     
     <div style="display: flex; gap: 12px;">
-      <button type="button" onclick="closeSessionModal()" class="btn-drawer-action-outline" style="padding: 10px 16px; font-size: 0.85rem; border-radius: 10px;">Cancel</button>
+      <button type="button" onclick="closeSessionModal()" class="btn-drawer-action-outline" style="padding: 10px 16px; font-size: 0.85rem; border-radius: 10px; flex: 1;">Cancel</button>
       <button type="button" onclick="launchSelectedSession()" class="btn-drawer-action-primary" style="padding: 10px 16px; font-size: 0.85rem; border-radius: 10px; flex: 1; justify-content: center;">Watch Video</button>
     </div>
   </div>
@@ -2489,52 +2545,116 @@
     }
 
     /**
-     * Session Modal Selection Controllers
+     * Session Modal Selection Controllers with Custom Premium Dropdown Selector
      */
-    let currentModalSessions = [];
+    let selectedModalUrl = "";
 
     function openSessionModal(sessions) {
-      currentModalSessions = sessions;
-      const select = document.getElementById('modal-session-selector');
-      if (!select) return;
+      const trigger = document.getElementById('custom-select-trigger');
+      const label = document.getElementById('custom-select-label');
+      const optionsContainer = document.getElementById('custom-select-options');
+      if (!trigger || !label || !optionsContainer) return;
       
-      select.innerHTML = '';
-      sessions.forEach((sess) => {
-        const option = document.createElement('option');
-        option.value = sess.url;
-        option.innerText = sess.label;
-        select.appendChild(option);
-      });
+      // Clear options list
+      optionsContainer.innerHTML = '';
+      
+      if (sessions.length > 0) {
+        // Pre-select first session
+        selectedModalUrl = sessions[0].url;
+        label.innerText = sessions[0].label;
+        
+        sessions.forEach((sess) => {
+          const optDiv = document.createElement('div');
+          optDiv.style.padding = '12px 14px';
+          optDiv.style.borderRadius = '8px';
+          optDiv.style.fontSize = '0.85rem';
+          optDiv.style.fontWeight = '500';
+          optDiv.style.color = 'var(--color-foreground)';
+          optDiv.style.cursor = 'pointer';
+          optDiv.style.transition = 'background var(--transition-fast)';
+          optDiv.innerText = sess.label;
+          
+          optDiv.addEventListener('mouseover', () => {
+            optDiv.style.background = 'rgba(217, 119, 6, 0.05)';
+            optDiv.style.color = 'var(--color-accent)';
+          });
+          optDiv.addEventListener('mouseout', () => {
+            optDiv.style.background = 'transparent';
+            optDiv.style.color = 'var(--color-foreground)';
+          });
+          
+          optDiv.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectedModalUrl = sess.url;
+            label.innerText = sess.label;
+            closeCustomSelect();
+          });
+          
+          optionsContainer.appendChild(optDiv);
+        });
+      }
       
       const overlay = document.getElementById('sessionModalOverlay');
       const panel = document.getElementById('sessionModalPanel');
       if (overlay && panel) {
-        overlay.style.opacity = '1';
-        overlay.style.pointerEvents = 'auto';
-        panel.style.opacity = '1';
-        panel.style.transform = 'translate(-50%, -50%) scale(1)';
-        panel.style.pointerEvents = 'auto';
+        overlay.classList.add('open');
+        panel.classList.add('open');
       }
     }
 
     function closeSessionModal() {
+      closeCustomSelect();
       const overlay = document.getElementById('sessionModalOverlay');
       const panel = document.getElementById('sessionModalPanel');
       if (overlay && panel) {
-        overlay.style.opacity = '0';
-        overlay.style.pointerEvents = 'none';
-        panel.style.opacity = '0';
-        panel.style.transform = 'translate(-50%, -50%) scale(0.9)';
-        panel.style.pointerEvents = 'none';
+        overlay.classList.remove('open');
+        panel.classList.remove('open');
       }
-      currentModalSessions = [];
+      selectedModalUrl = "";
     }
 
     function launchSelectedSession() {
-      const select = document.getElementById('modal-session-selector');
-      if (select && select.value) {
-        window.open(select.value, '_blank');
+      if (selectedModalUrl) {
+        window.open(selectedModalUrl, '_blank');
         closeSessionModal();
+      }
+    }
+
+    function toggleCustomSelect(event) {
+      if (event) event.stopPropagation();
+      const options = document.getElementById('custom-select-options');
+      const arrow = document.getElementById('custom-select-arrow');
+      const trigger = document.getElementById('custom-select-trigger');
+      if (!options || !arrow || !trigger) return;
+      
+      const isOpen = options.style.display === 'block';
+      if (isOpen) {
+        closeCustomSelect();
+      } else {
+        options.style.display = 'block';
+        arrow.style.transform = 'rotate(180deg)';
+        trigger.style.borderColor = 'var(--color-accent)';
+        
+        // Add a global click listener to close the select when clicking outside
+        document.addEventListener('click', handleOutsideSelectClick);
+      }
+    }
+
+    function closeCustomSelect() {
+      const options = document.getElementById('custom-select-options');
+      const arrow = document.getElementById('custom-select-arrow');
+      const trigger = document.getElementById('custom-select-trigger');
+      if (options) options.style.display = 'none';
+      if (arrow) arrow.style.transform = 'rotate(0deg)';
+      if (trigger) trigger.style.borderColor = 'var(--color-border)';
+      
+      document.removeEventListener('click', handleOutsideSelectClick);
+    }
+
+    function handleOutsideSelectClick(event) {
+      const container = document.querySelector('.custom-select-container');
+      if (container && !container.contains(event.target)) {
+        closeCustomSelect();
       }
     }
 
