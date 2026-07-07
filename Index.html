@@ -1925,7 +1925,7 @@
                   const statusClean = (openTopic.status || "Pending").toString().trim();
                   const statusBadge = document.getElementById('drawer-status-badge');
                   statusBadge.innerText = statusClean;
-                  statusBadge.className = 'status-badge ' + statusClean.toLowerCase().replace(/\s+/g, '-');
+                  statusBadge.className = 'status-badge ' + statusClean.toLowerCase().replace(new RegExp('\\s+', 'g'), '-');
                   
                   // Live link refresh
                   renderResourcesLinks(openTopic);
@@ -2018,7 +2018,7 @@
 
       appData.forEach((item, idx) => {
         const statusClean = (item.status || "Pending").toString().trim();
-        const statusClass = statusClean.toLowerCase().replace(/\s+/g, '-');
+        const statusClass = statusClean.toLowerCase().replace(new RegExp('\\s+', 'g'), '-');
         const node = document.createElement('div');
         node.className = `flow-node ${statusClass}`;
         node.setAttribute('onclick', `openTopicDetails(${item.rowNum})`);
@@ -2080,7 +2080,7 @@
 
       filtered.forEach(item => {
         const statusClean = (item.status || "Pending").toString().trim();
-        const statusClass = statusClean.toLowerCase().replace(/\s+/g, '-');
+        const statusClass = statusClean.toLowerCase().replace(new RegExp('\\s+', 'g'), '-');
         const card = document.createElement('div');
         card.className = 'topic-card tilt-card';
         card.id = `topic-row-node-${item.rowNum}`;
@@ -2286,7 +2286,7 @@
       
       // Parse links in topic.link cell (delimited by spaces or newlines)
       const cellVal = topic.link ? String(topic.link).trim() : "";
-      const links = cellVal.split(/\s+/).filter(l => l.toLowerCase().startsWith('http'));
+      const links = cellVal.split(new RegExp('\\s+')).filter(l => l.toLowerCase().startsWith('http'));
       
       let materialsLink = "https://drive.google.com/drive/folders/1U-JVyaVPXc-2bGIjSMEF_NXkNurcegJF?usp=sharing"; // default fallback folder
       let videoLink = null;
@@ -2366,11 +2366,11 @@
       }
 
       // Split by double newlines to isolate separate feedbacks
-      const entries = rawText.split(/\n\n+/);
+      const entries = rawText.split(new RegExp('\\n\\n+'));
 
       entries.forEach(entry => {
         // Regex to match: MM/DD/YYYY_username: message
-        const match = entry.match(/^(\d{2}\/\d{2}\/\d{4})_([^:]+):\s*([\s\S]+)$/);
+        const match = entry.match(new RegExp('^(\\d{2})/(\\d{2})/(\\d{4})_([^:]+):\\s*([\\s\\S]+)$'));
 
         const bubble = document.createElement('div');
         bubble.className = 'feedback-bubble';
@@ -2385,7 +2385,7 @@
               <span class="user">${user}</span>
               <span class="date">${date}</span>
             </div>
-            <div class="feedback-bubble-body">${text.replace(/\n/g, '<br>')}</div>
+            <div class="feedback-bubble-body">${text.replace(new RegExp('\\n', 'g'), '<br>')}</div>
           `;
         } else {
           // Fallback if older manual text entry is inside sheet cells
@@ -2393,7 +2393,7 @@
             <div class="feedback-bubble-header">
               <span class="user">Spreadsheet Entry</span>
             </div>
-            <div class="feedback-bubble-body">${entry.replace(/\n/g, '<br>')}</div>
+            <div class="feedback-bubble-body">${entry.replace(new RegExp('\\n', 'g'), '<br>')}</div>
           `;
         }
 
@@ -2521,7 +2521,7 @@
         const mm = String(today.getMonth() + 1).padStart(2, '0');
         const yyyy = today.getFullYear();
         const dateStr = mm + '/' + dd + '/' + yyyy;
-        const nameStr = username.replace(/[\s_:]/g, ""); // sanitize name
+        const nameStr = username.replace(new RegExp('[\\s_:]', 'g'), ""); // sanitize name
         return dateStr + "_" + nameStr + ": " + newComment;
       };
 
